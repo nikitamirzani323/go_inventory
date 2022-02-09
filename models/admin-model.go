@@ -135,28 +135,81 @@ func Save_admin(admin, username, password, idadminrule, name, status, ipaddress,
 			msg = "Duplicate Entry"
 		}
 	} else {
-		// sql_update := `
-		// 		UPDATE
-		// 		` + config.DB_tbl_mst_admin + `
-		// 		SET password =?, statusdomain=?, tipedomain=?,
-		// 		updatedomain=?, updatedatedomain=?
-		// 		WHERE iddomain =?
-		// 	`
+		if password != "" {
+			hashpass := helpers.HashPasswordMD5(password)
+			sql_update := `
+				UPDATE
+				` + config.DB_tbl_mst_admin + `
+				SET password =$1, idadmin=$2, name=$3, statuslogin=$4, 
+				updateadmin=$5, updatedateadmin=$6 
+				WHERE username =$7 
+			`
 
-		// flag_update, msg_update := Exec_SQL(sql_update, config.DB_tbl_mst_admin, "UPDATE",
-		// 	nmdomain, status, tipe,
-		// 	admin,
-		// 	tglnow.Format("YYYY-MM-DD HH:mm:ss"),
-		// 	idrecord)
+			flag_update, msg_update := Exec_SQL(sql_update, config.DB_tbl_mst_admin, "UPDATE",
+				hashpass, idadminrule, name, status,
+				admin, tglnow.Format("YYYY-MM-DD HH:mm:ss"), username)
 
-		// if flag_update {
-		// 	flag = true
-		// 	msg = "Succes"
-		// 	log.Println(msg_update)
-		// } else {
-		// 	log.Println(msg_update)
-		// }
+			if flag_update {
+				flag = true
+				msg = "Succes"
+				log.Println(msg_update)
+			} else {
+				log.Println(msg_update)
+			}
+		} else {
+			sql_update := `
+				UPDATE
+				` + config.DB_tbl_mst_admin + `
+				SET idadmin=$2, name=$3, statuslogin=$4, 
+				updateadmin=$5, updatedateadmin=$6 
+				WHERE username =$7 
+			`
+
+			flag_update, msg_update := Exec_SQL(sql_update, config.DB_tbl_mst_admin, "UPDATE",
+				idadminrule, name, status,
+				admin, tglnow.Format("YYYY-MM-DD HH:mm:ss"), username)
+
+			if flag_update {
+				flag = true
+				msg = "Succes"
+				log.Println(msg_update)
+			} else {
+				log.Println(msg_update)
+			}
+		}
 	}
+	res.Status = fiber.StatusOK
+	res.Message = msg
+	res.Record = nil
+	res.Time = time.Since(render_page).String()
+
+	return res, nil
+}
+func Delete_admin(username string) (helpers.Response, error) {
+	var res helpers.Response
+	msg := "Failed"
+	render_page := time.Now()
+	flag := false
+
+	flag = CheckDB(config.DB_tbl_mst_admin, "username", username)
+	if !flag {
+		sql_delete := `
+			DELETE FROM
+			` + config.DB_tbl_mst_admin + ` 
+			WHERE username = ? 
+		`
+		flag_delete, msg_delete := Exec_SQL(sql_delete, config.DB_tbl_mst_admin, "DELETE", username)
+
+		if flag_delete {
+			msg = "Succes"
+			log.Println(msg_delete)
+		} else {
+			log.Println(msg_delete)
+		}
+	} else {
+		msg = "Cannot Delete"
+	}
+
 	res.Status = fiber.StatusOK
 	res.Message = msg
 	res.Record = nil
