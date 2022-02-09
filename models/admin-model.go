@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -9,6 +10,7 @@ import (
 	"github.com/nikitamirzani323/inventory_api/db"
 	"github.com/nikitamirzani323/inventory_api/entities"
 	"github.com/nikitamirzani323/inventory_api/helpers"
+	"github.com/nleeper/goment"
 )
 
 func Fetch_adminHome() (helpers.ResponseAdmin, error) {
@@ -21,8 +23,9 @@ func Fetch_adminHome() (helpers.ResponseAdmin, error) {
 	start := time.Now()
 
 	sql_select := `SELECT 
-			username , name, idadmin,
-			statuslogin, lastlogin, joindate, 
+			username , name, idadmin, statuslogin, 
+			to_char(lastlogin,'YYYY-MM-DD HH24:mm:ss') as lastlogin, 
+			to_char(joindate,'YYYY-MM-DD') as joindate, 
 			ipaddress, timezone  
 			FROM ` + config.DB_tbl_mst_admin + ` 
 			ORDER BY lastlogin DESC 
@@ -51,14 +54,14 @@ func Fetch_adminHome() (helpers.ResponseAdmin, error) {
 		if lastlogin_db == "0000-00-00 00:00:00" {
 			lastlogin_db = ""
 		}
-		obj.Username = username_db
-		obj.Nama = name_db
-		obj.Rule = idadminlevel_db
-		obj.Joindate = joindate_db
-		obj.Timezone = timezone_db
-		obj.Lastlogin = lastlogin_db
-		obj.LastIpaddress = ipaddress_db
-		obj.Status = statuslogin_db
+		obj.Admin_username = username_db
+		obj.Admin_nama = name_db
+		obj.Admin_rule = idadminlevel_db
+		obj.Admin_joindate = joindate_db
+		obj.Admin_timezone = timezone_db
+		obj.Admin_lastlogin = lastlogin_db
+		obj.Admin_lastipaddres = ipaddress_db
+		obj.Admin_status = statuslogin_db
 		arraobj = append(arraobj, obj)
 		msg = "Success"
 	}
@@ -92,6 +95,72 @@ func Fetch_adminHome() (helpers.ResponseAdmin, error) {
 	res.Record = arraobj
 	res.Listrule = arraobjRule
 	res.Time = time.Since(start).String()
+
+	return res, nil
+}
+func Save_admin(admin, username, password, idadminrule, name, status, ipaddress, timezone, sData string) (helpers.Response, error) {
+	var res helpers.Response
+	msg := "Failed"
+	tglnow, _ := goment.New()
+	render_page := time.Now()
+	flag := false
+
+	if sData == "New" {
+		flag = CheckDB(config.DB_tbl_mst_admin, "username", username)
+		if !flag {
+			sql_insert := `
+				insert into
+				` + config.DB_tbl_mst_admin + ` (
+					username , password, idadmin, name, statuslogin, 
+					joindate, ipaddress, timezone, createadmin, createdateadmin 
+				) values (
+					$1, $2, $3, $4, $5,
+					$6, $7, $8, $9, $10 
+				)
+			`
+			hashpass := helpers.HashPasswordMD5(password)
+			flag_insert, msg_insert := Exec_SQL(sql_insert, config.DB_tbl_mst_admin, "INSERT",
+				username, hashpass, idadminrule, name, status,
+				tglnow.Format("YYYY-MM-DD"), ipaddress, timezone,
+				admin, tglnow.Format("YYYY-MM-DD HH:mm:ss"))
+
+			if flag_insert {
+				flag = true
+				msg = "Succes"
+				log.Println(msg_insert)
+			} else {
+				log.Println(msg_insert)
+			}
+		} else {
+			msg = "Duplicate Entry"
+		}
+	} else {
+		// sql_update := `
+		// 		UPDATE
+		// 		` + config.DB_tbl_mst_admin + `
+		// 		SET password =?, statusdomain=?, tipedomain=?,
+		// 		updatedomain=?, updatedatedomain=?
+		// 		WHERE iddomain =?
+		// 	`
+
+		// flag_update, msg_update := Exec_SQL(sql_update, config.DB_tbl_mst_admin, "UPDATE",
+		// 	nmdomain, status, tipe,
+		// 	admin,
+		// 	tglnow.Format("YYYY-MM-DD HH:mm:ss"),
+		// 	idrecord)
+
+		// if flag_update {
+		// 	flag = true
+		// 	msg = "Succes"
+		// 	log.Println(msg_update)
+		// } else {
+		// 	log.Println(msg_update)
+		// }
+	}
+	res.Status = fiber.StatusOK
+	res.Message = msg
+	res.Record = nil
+	res.Time = time.Since(render_page).String()
 
 	return res, nil
 }

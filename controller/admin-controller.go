@@ -5,21 +5,21 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/nikitamirzani323/inventory_api/config"
 	"github.com/nikitamirzani323/inventory_api/entities"
 	"github.com/nikitamirzani323/inventory_api/helpers"
 	"github.com/nikitamirzani323/inventory_api/models"
 )
 
-const Fieldadmin_home_redis = "LISTADMIN_BACKEND"
-
 func Adminhome(c *fiber.Ctx) error {
-	var obj entities.Responseredis_adminhome
-	var arraobj []entities.Responseredis_adminhome
+	var obj entities.Model_admin
+	var arraobj []entities.Model_admin
 	var obj_listruleadmin entities.Responseredis_adminrule
 	var arraobj_listruleadmin []entities.Responseredis_adminrule
 	render_page := time.Now()
-	resultredis, flag := helpers.GetRedis(Fieldadmin_home_redis)
+	resultredis, flag := helpers.GetRedis(config.REDIS_FIELDADMIN)
 	jsonredis := []byte(resultredis)
 	record_RD, _, _, _ := jsonparser.Get(jsonredis, "record")
 	listruleadmin_RD, _, _, _ := jsonparser.Get(jsonredis, "listruleadmin")
@@ -59,7 +59,7 @@ func Adminhome(c *fiber.Ctx) error {
 				"record":  nil,
 			})
 		}
-		helpers.SetRedis(Fieldadmin_home_redis, result, 30*time.Minute)
+		helpers.SetRedis(config.REDIS_FIELDADMIN, result, 30*time.Minute)
 		log.Println("ADMIN MYSQL")
 		return c.JSON(result)
 	} else {
@@ -72,4 +72,50 @@ func Adminhome(c *fiber.Ctx) error {
 			"time":          time.Since(render_page).String(),
 		})
 	}
+}
+func Adminsave(c *fiber.Ctx) error {
+	var errors []*helpers.ErrorResponse
+	client := new(entities.Controller_adminsave)
+	validate := validator.New()
+	if err := c.BodyParser(client); err != nil {
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{
+			"status":  fiber.StatusBadRequest,
+			"message": err.Error(),
+			"record":  nil,
+		})
+	}
+
+	err := validate.Struct(client)
+	if err != nil {
+		for _, err := range err.(validator.ValidationErrors) {
+			var element helpers.ErrorResponse
+			element.Field = err.StructField()
+			element.Tag = err.Tag()
+			errors = append(errors, &element)
+		}
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{
+			"status":  fiber.StatusBadRequest,
+			"message": "validation",
+			"record":  errors,
+		})
+	}
+
+	result, err := models.Save_admin(
+		client.Admin_client,
+		client.Admin_username, client.Admin_password, client.Admin_idadminrule, client.Admin_name,
+		client.Admin_statuslogin, client.Admin_ipaddres, client.Admin_timezone, client.Sdata)
+	if err != nil {
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{
+			"status":  fiber.StatusBadRequest,
+			"message": err.Error(),
+			"record":  nil,
+		})
+	}
+
+	val_master := helpers.DeleteRedis(config.REDIS_FIELDADMIN)
+	log.Printf("Redis Delete MASTER ADMIN : %d", val_master)
+	return c.JSON(result)
 }
